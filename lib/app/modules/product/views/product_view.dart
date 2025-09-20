@@ -1,15 +1,17 @@
 
 import 'package:examen_flutter/app/modules/models/Product.dart';
+import 'package:examen_flutter/app/modules/product/controllers/add_product_controller.dart';
 import 'package:examen_flutter/app/modules/product/controllers/product_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+
 class ProductView extends StatelessWidget {
   final ProductController controller = Get.put(ProductController());
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-       backgroundColor: Color(0xFF6F42C1),
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: Container(
           margin: EdgeInsets.all(16),
@@ -47,6 +49,23 @@ class ProductView extends StatelessWidget {
           ),
         ),
       ),
+      // Bouton flottant pour ajouter un produit
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _showAddProductModal(context),
+        backgroundColor: Color(0xFF6F42C1),
+        foregroundColor: Colors.white,
+        icon: Icon(Icons.add),
+        label: Text('Ajouter'),
+      ),
+    );
+  }
+
+  void _showAddProductModal(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => AddProductModal(),
     );
   }
 
@@ -287,7 +306,7 @@ class ProductView extends StatelessWidget {
                   border: Border.all(color: Colors.grey[300]!),
                 ),
                 child: TextField(
-                  onChanged: (value) => controller.searchQuery.value = value,
+                  onChanged: (value) => controller.searchProducts(value),
                   decoration: InputDecoration(
                     hintText: 'Search group...',
                     hintStyle: TextStyle(color: Colors.grey[500], fontSize: 14),
@@ -305,10 +324,10 @@ class ProductView extends StatelessWidget {
               Container(
                 height: 36,
                 child: ElevatedButton.icon(
-                  onPressed: () {},
+                  onPressed: () => _showAddProductModal(Get.context!),
                   icon: Icon(Icons.add, size: 16, color: Colors.white),
                   label: Text(
-                    'Add Group',
+                    'Add Product',
                     style: TextStyle(fontSize: 14, color: Colors.white),
                   ),
                   style: ElevatedButton.styleFrom(
@@ -370,97 +389,279 @@ class ProductView extends StatelessWidget {
   }
 
   Widget _buildProductCard(Product product) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey[200]!),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-            offset: Offset(0, 2),
-          ),
-        ],
+    return GestureDetector(
+      onTap: () => _showProductActions(product),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.grey[200]!),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 8,
+              offset: Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            // Product image container
+            Expanded(
+              flex: 3,
+              child: Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: product.backgroundColor,
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(8),
+                    topRight: Radius.circular(8),
+                  ),
+                ),
+                child: Stack(
+                  children: [
+                    Center(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.only(
+                          topLeft: Radius.circular(8),
+                          topRight: Radius.circular(8),
+                        ),
+                        child: Image.asset(
+                          'assets/images/${product.imageUrl}',
+                          fit: BoxFit.contain,
+                          width: double.infinity,
+                          height: double.infinity,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Icon(
+                              Icons.image_not_supported,
+                              size: 32,
+                              color: Colors.grey[400],
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                    // Actions overlay
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.black54,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: PopupMenuButton<String>(
+                          icon: Icon(Icons.more_vert, color: Colors.white, size: 18),
+                          onSelected: (value) => _handleProductAction(value, product),
+                          itemBuilder: (context) => [
+                            PopupMenuItem(
+                              value: 'edit',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.edit, size: 16),
+                                  SizedBox(width: 8),
+                                  Text('Modifier'),
+                                ],
+                              ),
+                            ),
+                            PopupMenuItem(
+                              value: 'stock',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.inventory, size: 16),
+                                  SizedBox(width: 8),
+                                  Text('Gérer stock'),
+                                ],
+                              ),
+                            ),
+                            PopupMenuItem(
+                              value: 'delete',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.delete, size: 16, color: Colors.red),
+                                  SizedBox(width: 8),
+                                  Text('Supprimer', style: TextStyle(color: Colors.red)),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            
+            // Product details
+            Expanded(
+              flex: 2,
+              child: Padding(
+                padding: EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      product.name,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                        color: Colors.black87,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      '- ${product.category}',
+                      style: TextStyle(
+                        color: Colors.grey[600],
+                        fontSize: 11,
+                      ),
+                    ),
+                    
+                    Spacer(),
+                    
+                    // Price and stock
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          '\$${product.minPrice.toStringAsFixed(2)} - \$${product.maxPrice.toStringAsFixed(2)}',
+                          style: TextStyle(
+                            color: Color(0xFF6F42C1),
+                            fontWeight: FontWeight.w600,
+                            fontSize: 11,
+                          ),
+                        ),
+                        Container(
+                          padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: product.stockStatusColor.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            'Stock ${product.stock}',
+                            style: TextStyle(
+                              color: product.stockStatusColor,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
-      child: Column(
-        children: [
-          // Product image container
-          Expanded(
-            flex: 3,
-            child: Container(
-              width: double.infinity,
-              decoration: BoxDecoration(
-                // color: product.backgroundColor,
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(8),
-                  topRight: Radius.circular(8),
-                ),
-              ),
-              child: Center(
-                // child: _buildProductIcon(product.imageUrl),
-                child: Image.asset(
-                  'assets/images/${product.imageUrl}',
-                  fit: BoxFit.contain,
-                ),
+    );
+  }
 
-              ),
-            ),
+  void _showProductActions(Product product) {
+    Get.bottomSheet(
+      Container(
+        padding: EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(20),
+            topRight: Radius.circular(20),
           ),
-          
-          // Product details
-          Expanded(
-            flex: 2,
-            child: Padding(
-              padding: EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    product.name,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                      color: Colors.black87,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  SizedBox(height: 2),
-                  Text(
-                    '- ${product.category}',
-                    style: TextStyle(
-                      color: Colors.grey[600],
-                      fontSize: 11,
-                    ),
-                  ),
-                  
-                  Spacer(),
-                  
-                  // Price and stock
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        '\$${product.minPrice.toStringAsFixed(2)} - \$${product.maxPrice.toStringAsFixed(2)}',
-                        style: TextStyle(
-                          color: Color(0xFF6F42C1),
-                          fontWeight: FontWeight.w600,
-                          fontSize: 11,
-                        ),
-                      ),
-                      Text(
-                        'Stock ${product.stock}',
-                        style: TextStyle(
-                          color: Colors.grey[500],
-                          fontSize: 10,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              product.name,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
               ),
             ),
+            SizedBox(height: 20),
+            ListTile(
+              leading: Icon(Icons.edit, color: Color(0xFF6F42C1)),
+              title: Text('Modifier le produit'),
+              onTap: () {
+                Get.back();
+                // TODO: Implementer la modification
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.inventory, color: Colors.orange),
+              title: Text('Gérer le stock'),
+              onTap: () {
+                Get.back();
+                _showStockDialog(product);
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.delete, color: Colors.red),
+              title: Text('Supprimer'),
+              onTap: () {
+                Get.back();
+                controller.deleteProduct(product.id!);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _handleProductAction(String action, Product product) {
+    switch (action) {
+      case 'edit':
+        // TODO: Implementer la modification
+        break;
+      case 'stock':
+        _showStockDialog(product);
+        break;
+      case 'delete':
+        controller.deleteProduct(product.id!);
+        break;
+    }
+  }
+
+  void _showStockDialog(Product product) {
+    final stockController = TextEditingController(text: product.stock.toString());
+    
+    Get.dialog(
+      AlertDialog(
+        title: Text('Modifier le stock'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Produit: ${product.name}'),
+            SizedBox(height: 16),
+            TextField(
+              controller: stockController,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                labelText: 'Nouveau stock',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(),
+            child: Text('Annuler'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final newStock = int.tryParse(stockController.text);
+              if (newStock != null) {
+                controller.updateProductStock(product.id!, newStock);
+                Get.back();
+              }
+            },
+            child: Text('Confirmer'),
           ),
         ],
       ),
@@ -499,6 +700,340 @@ class ProductView extends StatelessWidget {
       size: size,
       color: Colors.black54,
     );
+  }
+}
+
+// Modal d'ajout de produit
+class AddProductModal extends StatelessWidget {
+  final AddProductController controller = Get.put(AddProductController());
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.9,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(20),
+          topRight: Radius.circular(20),
+        ),
+      ),
+      child: Column(
+        children: [
+          // Header
+          Container(
+            padding: EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              border: Border(bottom: BorderSide(color: Colors.grey[200]!)),
+            ),
+            child: Row(
+              children: [
+                Text(
+                  'Ajouter un produit',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Spacer(),
+                IconButton(
+                  onPressed: () => Get.back(),
+                  icon: Icon(Icons.close),
+                ),
+              ],
+            ),
+          ),
+          
+          // Content
+          Expanded(
+            child: SingleChildScrollView(
+              padding: EdgeInsets.all(20),
+              child: Form(
+                key: controller.formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildImageSection(),
+                    SizedBox(height: 24),
+                    _buildBasicInfoSection(),
+                    SizedBox(height: 24),
+                    _buildPriceSection(),
+                    SizedBox(height: 24),
+                    _buildColorSection(),
+                    SizedBox(height: 32),
+                    _buildSubmitButton(),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildImageSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Image du produit',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        SizedBox(height: 12),
+        Obx(() => GestureDetector(
+          onTap: controller.pickImage,
+          child: Container(
+            width: double.infinity,
+            height: 150,
+            decoration: BoxDecoration(
+              color: Colors.grey[100],
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey[300]!),
+            ),
+            child: controller.selectedImage.value != null
+                ? ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: Image.file(
+                      controller.selectedImage.value!,
+                      fit: BoxFit.cover,
+                    ),
+                  )
+                : Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.add_a_photo, size: 40, color: Colors.grey[400]),
+                      SizedBox(height: 8),
+                      Text(
+                        'Appuyez pour ajouter une image',
+                        style: TextStyle(color: Colors.grey[600]),
+                      ),
+                    ],
+                  ),
+          ),
+        )),
+      ],
+    );
+  }
+
+  Widget _buildBasicInfoSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Informations de base',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        SizedBox(height: 16),
+        
+        // Nom
+        TextFormField(
+          controller: controller.nameController,
+          decoration: InputDecoration(
+            labelText: 'Nom du produit *',
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+          validator: (value) {
+            if (value == null || value.isEmpty) {
+              return 'Le nom est requis';
+            }
+            return null;
+          },
+        ),
+        
+        SizedBox(height: 16),
+        
+        // Catégorie
+        Obx(() => DropdownButtonFormField<String>(
+          value: controller.selectedCategory.value,
+          decoration: InputDecoration(
+            labelText: 'Catégorie *',
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+          items: controller.categories.map((category) {
+            return DropdownMenuItem(value: category, child: Text(category));
+          }).toList(),
+          onChanged: (value) => controller.selectedCategory.value = value!,
+        )),
+        
+        SizedBox(height: 16),
+        
+        // Stock
+        TextFormField(
+          controller: controller.stockController,
+          keyboardType: TextInputType.number,
+          decoration: InputDecoration(
+            labelText: 'Stock *',
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+          validator: (value) {
+            if (value == null || value.isEmpty) return 'Le stock est requis';
+            if (int.tryParse(value) == null) return 'Nombre invalide';
+            return null;
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPriceSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Gamme de prix',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        SizedBox(height: 16),
+        
+        Row(
+          children: [
+            // Prix minimum
+            Expanded(
+              child: TextFormField(
+                controller: controller.minPriceController,
+                keyboardType: TextInputType.numberWithOptions(decimal: true),
+                decoration: InputDecoration(
+                  labelText: 'Prix min *',
+                  prefixText: '\$ ',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                validator: (value) {
+                  if (value == null || value.isEmpty) return 'Prix min requis';
+                  if (double.tryParse(value) == null) return 'Prix invalide';
+                  return null;
+                },
+              ),
+            ),
+            
+            SizedBox(width: 16),
+            
+            // Prix maximum
+            Expanded(
+              child: TextFormField(
+                controller: controller.maxPriceController,
+                keyboardType: TextInputType.numberWithOptions(decimal: true),
+                decoration: InputDecoration(
+                  labelText: 'Prix max *',
+                  prefixText: '\$ ',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                validator: (value) {
+                  if (value == null || value.isEmpty) return 'Prix max requis';
+                  final maxPrice = double.tryParse(value);
+                  final minPrice = double.tryParse(controller.minPriceController.text);
+                  
+                  if (maxPrice == null) return 'Prix invalide';
+                  if (minPrice != null && maxPrice < minPrice) {
+                    return 'Prix max < prix min';
+                  }
+                  return null;
+                },
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildColorSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Couleur de fond',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        SizedBox(height: 16),
+        
+        Obx(() => Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: controller.backgroundColors.map((colorHex) {
+            final color = Color(int.parse(colorHex.replaceFirst('#', '0xFF')));
+            final isSelected = controller.selectedBackgroundColor.value == colorHex;
+            
+            return GestureDetector(
+              onTap: () => controller.selectedBackgroundColor.value = colorHex,
+              child: AnimatedContainer(
+                duration: Duration(milliseconds: 200),
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: isSelected ? Color(0xFF6F42C1) : Colors.grey[300]!,
+                    width: isSelected ? 3 : 1,
+                  ),
+                ),
+                child: isSelected
+                    ? Icon(
+                        Icons.check,
+                        color: color.computeLuminance() > 0.5 ? Colors.black : Colors.white,
+                        size: 20,
+                      )
+                    : null,
+              ),
+            );
+          }).toList(),
+        )),
+      ],
+    );
+  }
+
+  Widget _buildSubmitButton() {
+    return Obx(() => Container(
+      width: double.infinity,
+      height: 50,
+      child: ElevatedButton(
+        onPressed: controller.isLoading.value ? null : controller.addProduct,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Color(0xFF6F42C1),
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+          elevation: 0,
+        ),
+        child: controller.isLoading.value
+            ? SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              )
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.add, size: 20),
+                  SizedBox(width: 8),
+                  Text(
+                    'Ajouter le produit',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+      ),
+    ));
   }
 }
 

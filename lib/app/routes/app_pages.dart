@@ -1,5 +1,7 @@
 import 'package:get/get.dart';
 
+import '../modules/auth/bindings/auth_binding.dart';
+import '../modules/auth/views/auth_view.dart';
 import '../modules/product/bindings/product_binding.dart';
 import '../modules/product/views/product_view.dart';
 
@@ -13,8 +15,13 @@ class AppPages {
   static final routes = [
     GetPage(
       name: _Paths.PRODUCT,
-      page: () =>  ProductView(),
+      page: () => ProductView(),
       binding: ProductBinding(),
     ),
+    // GetPage(
+    //   name: _Paths.AUTH,
+    //   page: () => const AuthView(),
+    //   binding: AuthBinding(),
+    // ),
   ];
 }
