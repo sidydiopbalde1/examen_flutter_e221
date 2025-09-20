@@ -4,7 +4,6 @@ import 'package:examen_flutter/app/modules/models/Product.dart';
 import 'package:examen_flutter/app/modules/services/api_service.dart';
 import 'package:examen_flutter/app/modules/services/storage_service.dart';
 import 'package:get/get.dart';
-import 'package:http/http.dart' show MultipartFile;
 
 class ProductService extends GetxService {
   final ApiService _apiService = Get.find<ApiService>();
