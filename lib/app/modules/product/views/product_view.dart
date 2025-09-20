@@ -391,14 +391,19 @@ class ProductView extends StatelessWidget {
             child: Container(
               width: double.infinity,
               decoration: BoxDecoration(
-                color: product.backgroundColor,
+                // color: product.backgroundColor,
                 borderRadius: BorderRadius.only(
                   topLeft: Radius.circular(8),
                   topRight: Radius.circular(8),
                 ),
               ),
               child: Center(
-                child: _buildProductIcon(product.imageUrl),
+                // child: _buildProductIcon(product.imageUrl),
+                child: Image.asset(
+                  'assets/images/${product.imageUrl}',
+                  fit: BoxFit.contain,
+                ),
+
               ),
             ),
           ),
