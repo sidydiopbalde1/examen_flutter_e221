@@ -1,33 +1,31 @@
 class ApiResponse<T> {
-  final bool success;
+  final int statusCode;
+  final String status;
   final String message;
   final T? data;
-  final int? statusCode;
   final Map<String, dynamic>? errors;
+  final Map<String, dynamic>? meta;
 
   ApiResponse({
-    required this.success,
+    required this.statusCode,
+    required this.status,
     required this.message,
     this.data,
-    this.statusCode,
     this.errors,
+    this.meta,
   });
 
-  factory ApiResponse.success(T data, {String message = 'Success'}) {
-    return ApiResponse(
-      success: true,
-      message: message,
-      data: data,
-      statusCode: 200,
-    );
-  }
+  bool get isSuccess => statusCode >= 200 && statusCode < 300;
+  bool get isError => !isSuccess;
 
-  factory ApiResponse.error(String message, {int? statusCode, Map<String, dynamic>? errors}) {
-    return ApiResponse(
-      success: false,
-      message: message,
-      statusCode: statusCode,
-      errors: errors,
+  factory ApiResponse.fromMap(Map<String, dynamic> map, [T? data]) {
+    return ApiResponse<T>(
+      statusCode: map['statusCode'] ?? 0,
+      status: map['status'] ?? 'unknown',
+      message: map['message'] ?? 'Aucun message',
+      data: data ?? map['data'],
+      errors: map['errors'],
+      meta: map['meta'],
     );
   }
 }
