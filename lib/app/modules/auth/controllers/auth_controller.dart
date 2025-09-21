@@ -37,7 +37,7 @@ class AuthController extends GetxController {
         );
         
         // Navigation vers l'écran principal
-        Get.offAllNamed('/home'); // ou Get.offAll(() => ProductManagementScreen());
+        Get.offAllNamed('/products'); // ou Get.offAll(() => ProductManagementScreen());
       } else {
         throw Exception('Email ou mot de passe incorrect');
       }

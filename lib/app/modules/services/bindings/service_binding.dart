@@ -7,7 +7,7 @@ class ServiceBindings extends Bindings {
   @override
   void dependencies() {
     Get.put<ApiService>(ApiService(), permanent: true);
-    Get.put<ProductService>(ProductService(), permanent: true);
-    Get.put<ProductRepository>(ProductRepository(), permanent: true);
+    // Get.put<ProductService>(ProductService(), permanent: true);
+    // Get.put<ProductRepository>(ProductRepository(), permanent: true);
   }
 }

@@ -11,7 +11,7 @@ import 'package:examen_flutter/app/modules/config/config.dart';
 class ApiService extends GetxService {
   RxBool isLoading = false.obs;
   RxString currentOperation = ''.obs;
-
+  RxString baseUrl = "https://api-exam-flutter-l3.smartek.sn/".obs;
   // JSON POST
  Future<Map<String, dynamic>> postRequest(
     String endpoint,
@@ -196,8 +196,8 @@ class ApiService extends GetxService {
         uri,
         headers: headers,
       ).timeout(Duration(seconds: 30));
-
-      return _handleResponse(response);
+      
+      return handleProductResponse(response);
     } catch (e) {
       _showErrorSnackbar('Erreur GET: $e');
       throw Exception('Erreur GET: $e');
@@ -205,7 +205,86 @@ class ApiService extends GetxService {
       isLoading.value = false;
     }
   }
+Map<String, dynamic> handleProductResponse(http.Response response) {
+  try {
+    print('🔍 [API_SERVICE] Product Response Status: ${response.statusCode}');
+    print('🔍 [API_SERVICE] Product Response Body: ${response.body}');
 
+    final responseBody = json.decode(response.body);
+
+    if (responseBody is Map<String, dynamic>) {
+      // Structure standardisée pour les réponses produits
+      final result = {
+        'statusCode': response.statusCode,
+        'success': response.statusCode >= 200 && response.statusCode < 300,
+        'message': responseBody['message'] ?? _getDefaultMessage(response.statusCode),
+        'data': responseBody['data'],
+        'pagination': responseBody['pagination'],
+        'errors': responseBody['errors'],
+        'timestamp': DateTime.now().toIso8601String(),
+      };
+
+      // Gestion spécifique selon le status code
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        _showSuccessSnackbar(result['message']);
+        
+        // Log spécifique pour les produits
+        if (result['data'] is List) {
+          print('🔍 [PRODUCTS] ${(result['data'] as List).length} produits récupérés');
+        } else if (result['data'] is Map && result['data']['_id'] != null) {
+          print('🔍 [PRODUCTS] Produit traité: ${result['data']['nom']}');
+        }
+      } else {
+        _showErrorSnackbar(result['message']);
+        print('🔍 [PRODUCTS] Erreur: ${result['message']}');
+      }
+
+      return result;
+    } else {
+      throw Exception('Réponse produit mal formatée');
+    }
+  } catch (e) {
+    print('🔍 [PRODUCTS] Erreur parsing: $e');
+    _showErrorSnackbar('Erreur lors du traitement des données produits');
+    
+    // Retourner une structure d'erreur standardisée
+    return {
+      'statusCode': response.statusCode,
+      'success': false,
+      'message': 'Erreur lors du traitement: $e',
+      'data': null,
+      'pagination': null,
+      'errors': ['Erreur de parsing: $e'],
+      'timestamp': DateTime.now().toIso8601String(),
+    };
+  }
+}
+String _getDefaultMessage(int statusCode) {
+  switch (statusCode) {
+    case 200:
+      return 'Produits récupérés avec succès';
+    case 201:
+      return 'Produit créé avec succès';
+    case 204:
+      return 'Produit supprimé avec succès';
+    case 400:
+      return 'Données produit invalides';
+    case 401:
+      return 'Authentification requise';
+    case 403:
+      return 'Accès refusé aux produits';
+    case 404:
+      return 'Produit non trouvé';
+    case 409:
+      return 'Produit déjà existant';
+    case 422:
+      return 'Données produit incorrectes';
+    case 500:
+      return 'Erreur serveur lors du traitement des produits';
+    default:
+      return 'Erreur inconnue';
+  }
+}
   // Handler (VOTRE CODE)
   Map<String, dynamic> _handleResponse(http.Response response) {
     try {
@@ -213,7 +292,7 @@ class ApiService extends GetxService {
       print('🔍 [API_SERVICE] Response Body: ${response.body}');
 
       final responseBody = json.decode(response.body);
-
+      print('🔍 [API_SERVICE] Response Body décodé: ${response.body}');
       if (responseBody is Map<String, dynamic>) {
         final config = HttpResponseConfig.getResponseConfig(response.statusCode);
         
@@ -221,7 +300,8 @@ class ApiService extends GetxService {
           'statusCode': response.statusCode,
           'status': responseBody['status'] ?? config['status'],
           'message': responseBody['message'] ?? config['message'],
-          'data': responseBody['data'],
+          'data': responseBody['user'],
+          'token':responseBody['token'],
           'errors': responseBody['errors'],
           'meta': config,
         };

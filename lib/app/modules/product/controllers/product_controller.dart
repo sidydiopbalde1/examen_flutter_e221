@@ -2,37 +2,45 @@ import 'package:examen_flutter/app/modules/models/Product.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'dart:io';
-
-
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:examen_flutter/app/modules/services/api_service.dart';
 class ProductController extends GetxController with GetSingleTickerProviderStateMixin {
-  // ========== VARIABLES EXISTANTES ==========
+  // ========== VARIABLES ==========
   RxList<Product> products = <Product>[].obs;
   RxString selectedCategory = 'Group'.obs;
   RxString searchQuery = ''.obs;
   RxBool isLoading = false.obs;
-  
-  late AnimationController animationController;
-  late Animation<double> fadeAnimation;
-
-  // ========== NOUVELLES VARIABLES API ==========
   RxBool isCreating = false.obs;
   RxBool isUpdating = false.obs;
   RxBool isDeleting = false.obs;
   RxString errorMessage = ''.obs;
+  
+  // Pagination
   RxInt currentPage = 1.obs;
   RxInt totalPages = 1.obs;
   RxBool hasMoreProducts = true.obs;
-
+  RxInt totalProducts = 0.obs;
+  
   // Filtres et tri
   RxString sortBy = 'name'.obs;
   RxString sortOrder = 'asc'.obs;
   RxList<String> availableCategories = <String>[].obs;
+  
+  late AnimationController animationController;
+  late Animation<double> fadeAnimation;
+  
+  // Instance du service API
+  ApiService get _apiService => Get.find<ApiService>();
 
   @override
   void onInit() {
     super.onInit();
+
+    if (!Get.isRegistered<ApiService>()) {
+      Get.put(ApiService());
+    }
     _initializeAnimations();
-    _initializeServices();
     loadProducts();
     animationController.forward();
   }
@@ -47,49 +55,103 @@ class ProductController extends GetxController with GetSingleTickerProviderState
     );
   }
 
-  void _initializeServices() {
-    // Observer les changements du service API
-    // ever(repository.isLoading, (loading) => isLoading.value = loading);
-  }
-
   // ========== CHARGEMENT DES PRODUITS ==========
   
   Future<void> loadProducts({
     bool refresh = false,
-    bool useCache = true,
+    int? page,
+    int limit = 20,
   }) async {
     try {
+      if (refresh) {
+        currentPage.value = 1;
+        products.clear();
+      }
+      
       isLoading.value = true;
       errorMessage.value = '';
 
-      // TODO: Décommentez quand vous avez configuré vos services API
-      /*
-      final response = await repository.getAllProducts(
-        page: currentPage.value,
-        limit: 20,
-        search: searchQuery.value.isNotEmpty ? searchQuery.value : null,
-        category: selectedCategory.value != 'Group' ? selectedCategory.value : null,
-        useCache: useCache && !refresh,
-      );
+      // Récupérer le token d'authentification
+      final token = await _getAuthToken();
+      print('TOOOOOOOOOOOOOOOKENNNNNN ${token}');
+      if (token == null) {
+        print('🔍 [PRODUCTS] Token manquant, chargement des données de fallback');
+        _loadFallbackData();
+        return;
+      }
 
-      if (response.isSuccess && response.data != null) {
-        if (refresh || currentPage.value == 1) {
-          products.clear();
+      // Construire les paramètres de requête
+      final queryParams = <String, String>{
+        'page': (page ?? currentPage.value).toString(),
+        'limit': limit.toString(),
+      };
+
+      if (searchQuery.value.isNotEmpty) {
+        queryParams['search'] = searchQuery.value;
+      }
+
+      if (selectedCategory.value != 'Group') {
+        queryParams['categorie'] = selectedCategory.value;
+      }
+
+      print('🔍 [PRODUCTS] Chargement avec params: $queryParams');
+
+      // Appel à l'API
+      final response = await _apiService.getRequest(
+        '/products',
+        token: token,
+        queryParams: queryParams,
+      );
+      print('------------------------PRODUCTS-----------------------');
+      print('🔍 [PRODUCTS] Réponse API: ${response['statusCode']}');
+
+      if (response['statusCode'] >= 200 && response['statusCode'] < 300) {
+        final data = response['data'];
+        print('DATTTTTTTTTA $data');
+        if (data != null) {
+          List<Product> newProducts = [];
+          
+          // Vérifier si la réponse contient directement un tableau ou un objet avec pagination
+          if (data is List) {
+            // Réponse directe avec tableau de produits
+            newProducts = data.map((json) => Product.fromApiJson(json)).toList();
+            hasMoreProducts.value = newProducts.length >= limit;
+          } else if (data is Map && data.containsKey('data')) {
+            // Réponse avec pagination
+            final productsData = data as List?;
+            final pagination = response['pagination'];
+            
+            if (productsData != null) {
+              newProducts = productsData.map((json) => Product.fromApiJson(json)).toList();
+            }
+            
+            if (pagination != null) {
+              totalPages.value = pagination['totalPages'] ?? 1;
+              totalProducts.value = pagination['totalProducts'] ?? 0;
+              hasMoreProducts.value = pagination['hasNext'] ?? false;
+            }
+          } else {
+            // Réponse directe avec tableau
+            newProducts = [data].map((json) => Product.fromApiJson(json)).toList();
+          }
+
+          if (refresh || currentPage.value == 1) {
+            products.clear();
+          }
+          
+          products.addAll(newProducts);
+          _updateAvailableCategories();
+          
+          print('🔍 [PRODUCTS] ${newProducts.length} produits chargés');
         }
-        products.addAll(response.data!);
-        
-        _updateAvailableCategories();
-        hasMoreProducts.value = response.data!.length >= 20;
       } else {
-        errorMessage.value = response.message;
+        errorMessage.value = response['message'] ?? 'Erreur lors du chargement';
+        print('🔍 [PRODUCTS] Erreur API: ${response['message']}');
         _loadFallbackData();
       }
-      */
-
-      // FALLBACK: Utiliser vos données actuelles si l'API n'est pas disponible
-      _loadFallbackData();
 
     } catch (e) {
+      print('🔍 [PRODUCTS] Exception: $e');
       errorMessage.value = 'Erreur de connexion: $e';
       _loadFallbackData();
     } finally {
@@ -97,126 +159,53 @@ class ProductController extends GetxController with GetSingleTickerProviderState
     }
   }
 
-  void _loadFallbackData() {
-    products.value = [
-      Product(
-        id: '1',
-        name: 'Amazon Echo Plus (3nd Gen)',
-        category: 'Premium Quality',
-        minPrice: 45.00,
-        maxPrice: 55.00,
-        imageUrl: 'image1.png',
-        stock: 57,
-        backgroundColor: Colors.deepPurpleAccent,
-      ),
-      Product(
-        id: '2',
-        name: 'Amazon Echo Plus (3nd Gen)',
-        category: 'Premium Quality',
-        minPrice: 65.00,
-        maxPrice: 85.00,
-        imageUrl: 'image2.png',
-        stock: 57,
-        backgroundColor: Colors.orangeAccent,
-      ),
-      Product(
-        id: '3',
-        name: 'Amazon Echo Plus (3nd Gen)',
-        category: 'Premium Quality',
-        minPrice: 48.00,
-        maxPrice: 65.00,
-        imageUrl: 'image1.png',
-        stock: 57,
-        backgroundColor: Colors.red,
-      ),
-      Product(
-        id: '4',
-        name: 'Amazon Echo Plus (3nd Gen)',
-        category: 'Premium Quality',
-        minPrice: 45.00,
-        maxPrice: 55.00,
-        imageUrl: 'image3.png',
-        stock: 57,
-        backgroundColor: Colors.yellow,
-      ),
-      Product(
-        id: '5',
-        name: 'Amazon Echo Plus (3nd Gen)',
-        category: 'Premium Quality',
-        minPrice: 45.00,
-        maxPrice: 65.00,
-        imageUrl: 'image1.png',
-        stock: 57,
-        backgroundColor: Colors.black26,
-      ),
-      Product(
-        id: '6',
-        name: 'Amazon Echo Plus (3nd Gen)',
-        category: 'Premium Quality',
-        minPrice: 45.00,
-        maxPrice: 65.00,
-        imageUrl: 'image3.png',
-        stock: 57,
-        backgroundColor: Colors.green,
-      ),
-    ];
-    _updateAvailableCategories();
-  }
+  // ========== CRÉATION DE PRODUIT ==========
 
-  // ========== OPÉRATIONS CRUD - AJOUT AMÉLIORÉ ==========
-
-  /// Créer un nouveau produit (version améliorée avec validation)
   Future<bool> createProduct(Product product) async {
     try {
       isCreating.value = true;
       errorMessage.value = '';
 
-      // Validation des données avant envoi
       if (!_validateProduct(product)) {
         return false;
       }
 
-      // TODO: Décommentez quand vous avez configuré vos services API
-      /*
-      final response = await repository.createProduct(product);
-      
-      if (response.isSuccess && response.data != null) {
-        products.add(response.data!);
-        _updateAvailableCategories();
-        
-        _showSuccessSnackbar('Produit créé avec succès');
-        return true;
-      } else {
-        errorMessage.value = response.message;
-        _showErrorSnackbar('Erreur lors de la création: ${response.message}');
+      final token = await _getAuthToken();
+      if (token == null) {
+        _showErrorSnackbar('Token d\'authentification manquant');
         return false;
       }
-      */
 
-      // SIMULATION: Ajouter localement pour le moment
-      await Future.delayed(Duration(seconds: 1)); // Simulation délai réseau
+      // Convertir au format API
+      final productData = product.toApiJson();
+      
+      print('🔍 [PRODUCTS] Création produit: $productData');
 
-      final newProduct = product.copyWith(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        createdAt: DateTime.now(),
+      final response = await _apiService.postRequest(
+        '/products',
+        productData,
+        token: token,
       );
-      
-      products.add(newProduct);
-      _updateAvailableCategories();
-      
-      _showSuccessSnackbar('Produit créé avec succès');
-      return true;
+
+      if (response['statusCode'] >= 200 && response['statusCode'] < 300) {
+        print('🔍 [PRODUCTS] Produit créé avec succès');
+        // Recharger la liste des produits
+        await loadProducts(refresh: true);
+        return true;
+      } else {
+        errorMessage.value = response['message'] ?? 'Erreur lors de la création';
+        return false;
+      }
 
     } catch (e) {
+      print('🔍 [PRODUCTS] Erreur création: $e');
       errorMessage.value = 'Erreur lors de la création: $e';
-      _showErrorSnackbar('Erreur lors de la création: $e');
       return false;
     } finally {
       isCreating.value = false;
     }
   }
 
-  /// Créer un produit depuis les données du formulaire
   Future<bool> createProductFromForm({
     required String name,
     required String category,
@@ -226,152 +215,394 @@ class ProductController extends GetxController with GetSingleTickerProviderState
     required String backgroundColorHex,
     String? imageUrl,
     File? imageFile,
+    String? description,
   }) async {
     try {
-      // Créer le produit avec les données du formulaire
+      isCreating.value = true;
+
+      // Créer le produit selon le nouveau modèle
       final product = Product.fromHexColor(
         name: name.trim(),
+        description: description ?? 'Description du produit',
+        price: minPrice, // Utiliser le prix minimum comme prix unique
         category: category,
-        minPrice: minPrice,
-        maxPrice: maxPrice,
-        imageUrl: imageUrl ?? 'default_product.png',
         stock: stock,
         backgroundColorHex: backgroundColorHex,
       );
 
-      // Si une image a été sélectionnée, l'uploader d'abord
+      // Si une image est sélectionnée, l'uploader d'abord
       if (imageFile != null) {
-        final uploadedImageUrl = await _uploadImageFile(imageFile);
-        if (uploadedImageUrl != null) {
-          final updatedProduct = product.copyWith(imageUrl: uploadedImageUrl);
-          return await createProduct(updatedProduct);
+        print('🔍 [PRODUCTS] Upload d\'image en cours...');
+        final uploadSuccess = await _uploadProductImage(imageFile);
+        if (!uploadSuccess) {
+          _showErrorSnackbar('Erreur lors de l\'upload de l\'image');
+          return false;
         }
       }
 
       return await createProduct(product);
+
     } catch (e) {
-      _showErrorSnackbar('Erreur lors de la création du produit: $e');
+      print('🔍 [PRODUCTS] Erreur création formulaire: $e');
+      errorMessage.value = 'Erreur lors de la création: $e';
+      return false;
+    } finally {
+      isCreating.value = false;
+    }
+  }
+
+  // ========== UPLOAD D'IMAGE ==========
+
+  Future<bool> _uploadProductImage(File imageFile) async {
+    try {
+      final token = await _getAuthToken();
+      if (token == null) return false;
+
+      // Créer le multipart file
+      final multipartFile = await http.MultipartFile.fromPath(
+        'images', // Nom du champ selon votre API
+        imageFile.path,
+      );
+
+      final response = await _apiService.postMultipartRequest(
+        endpoint: '/products/upload', // Adaptez selon votre endpoint
+        fields: {}, // Ajoutez des champs si nécessaire
+        files: [multipartFile],
+        token: token,
+      );
+
+      return response['statusCode'] >= 200 && response['statusCode'] < 300;
+
+    } catch (e) {
+      print('🔍 [PRODUCTS] Erreur upload image: $e');
       return false;
     }
   }
 
-  /// Validation des données produit
+  // ========== MISE À JOUR DE PRODUIT ==========
+// Remplacez la méthode updateProduct dans votre ProductController par celle-ci :
+
+Future<bool> updateProduct(String id, Product updatedProduct) async {
+  try {
+    isUpdating.value = true;
+    errorMessage.value = '';
+
+    final token = await _getAuthToken();
+    if (token == null) {
+      _showErrorSnackbar('Token d\'authentification manquant');
+      return false;
+    }
+
+    // Convertir au format API pour la mise à jour
+    final productData = updatedProduct.toApiJson();
+    
+    print('🔍 [PRODUCTS] Mise à jour produit ID: $id');
+    print('🔍 [PRODUCTS] Données: $productData');
+
+    final response = await _apiService.putRequest(
+      '/products/$id',
+      productData,
+      token: token,
+    );
+
+    if (response['statusCode'] >= 200 && response['statusCode'] < 300) {
+      print('🔍 [PRODUCTS] Produit mis à jour avec succès');
+      
+      // Mettre à jour localement le produit dans la liste
+      final index = products.indexWhere((p) => p.id == id);
+      if (index != -1) {
+        products[index] = updatedProduct;
+        _updateAvailableCategories();
+      }
+      
+      // Optionnellement, recharger la liste pour synchroniser avec le serveur
+      // await loadProducts(refresh: true);
+      
+      _showSuccessSnackbar('Produit modifié avec succès');
+      return true;
+    } else {
+      errorMessage.value = response['message'] ?? 'Erreur lors de la mise à jour';
+      _showErrorSnackbar(errorMessage.value);
+      return false;
+    }
+
+  } catch (e) {
+    print('🔍 [PRODUCTS] Erreur mise à jour: $e');
+    errorMessage.value = 'Erreur lors de la mise à jour: $e';
+    _showErrorSnackbar(errorMessage.value);
+    return false;
+  } finally {
+    isUpdating.value = false;
+  }
+}
+
+// Ajoutez cette méthode pour la mise à jour partielle (utile pour des champs spécifiques)
+Future<bool> partialUpdateProduct(String id, Map<String, dynamic> updates) async {
+  try {
+    isUpdating.value = true;
+    errorMessage.value = '';
+
+    final token = await _getAuthToken();
+    if (token == null) {
+      _showErrorSnackbar('Token d\'authentification manquant');
+      return false;
+    }
+
+    print('🔍 [PRODUCTS] Mise à jour partielle produit ID: $id');
+    print('🔍 [PRODUCTS] Champs modifiés: $updates');
+
+    final response = await _apiService.patchRequest(
+      '/products/$id',
+      updates,
+      token: token,
+    );
+
+    if (response['statusCode'] >= 200 && response['statusCode'] < 300) {
+      print('🔍 [PRODUCTS] Mise à jour partielle réussie');
+      
+      // Mettre à jour localement
+      final index = products.indexWhere((p) => p.id == id);
+      if (index != -1) {
+        final currentProduct = products[index];
+        
+        // Créer une copie mise à jour du produit
+        Product updatedProduct = currentProduct.copyWith(
+          name: updates['nom'] ?? currentProduct.name,
+          description: updates['description'] ?? currentProduct.description,
+          price: updates['prix']?.toDouble() ?? currentProduct.price,
+          category: updates['categorie'] ?? currentProduct.category,
+          stock: updates['stock'] ?? currentProduct.stock,
+          updatedAt: DateTime.now(),
+        );
+        
+        products[index] = updatedProduct;
+        _updateAvailableCategories();
+      }
+      
+      _showSuccessSnackbar('Produit modifié avec succès');
+      return true;
+    } else {
+      errorMessage.value = response['message'] ?? 'Erreur lors de la mise à jour';
+      _showErrorSnackbar(errorMessage.value);
+      return false;
+    }
+
+  } catch (e) {
+    print('🔍 [PRODUCTS] Erreur mise à jour partielle: $e');
+    errorMessage.value = 'Erreur lors de la mise à jour: $e';
+    _showErrorSnackbar(errorMessage.value);
+    return false;
+  } finally {
+    isUpdating.value = false;
+  }
+}
+  // ========== SUPPRESSION DE PRODUIT ==========
+
+  Future<bool> deleteProduct(String id) async {
+    try {
+      isDeleting.value = true;
+      errorMessage.value = '';
+
+      final confirmed = await _showDeleteConfirmation();
+      if (!confirmed) return false;
+
+      final token = await _getAuthToken();
+      if (token == null) {
+        _showErrorSnackbar('Token d\'authentification manquant');
+        return false;
+      }
+
+      final response = await _apiService.deleteRequest(
+        '/products/$id',
+        token: token,
+      );
+
+      if (response['statusCode'] >= 200 && response['statusCode'] < 300) {
+        products.removeWhere((p) => p.id == id);
+        _updateAvailableCategories();
+        return true;
+      } else {
+        errorMessage.value = response['message'] ?? 'Erreur lors de la suppression';
+        return false;
+      }
+
+    } catch (e) {
+      print('🔍 [PRODUCTS] Erreur suppression: $e');
+      errorMessage.value = 'Erreur lors de la suppression: $e';
+      return false;
+    } finally {
+      isDeleting.value = false;
+    }
+  }
+
+  // ========== MISE À JOUR DU STOCK ==========
+
+  Future<bool> updateProductStock(String id, int newStock) async {
+    try {
+      if (newStock < 0) {
+        _showErrorSnackbar('Le stock ne peut pas être négatif');
+        return false;
+      }
+
+      final token = await _getAuthToken();
+      if (token == null) {
+        _showErrorSnackbar('Token d\'authentification manquant');
+        return false;
+      }
+
+      final response = await _apiService.patchRequest(
+        '/products/$id',
+        {'stock': newStock},
+        token: token,
+      );
+
+      if (response['statusCode'] >= 200 && response['statusCode'] < 300) {
+        // Mettre à jour localement
+        final index = products.indexWhere((p) => p.id == id);
+        if (index != -1) {
+          products[index] = products[index].copyWith(
+            stock: newStock,
+            updatedAt: DateTime.now(),
+          );
+        }
+        return true;
+      } else {
+        errorMessage.value = response['message'] ?? 'Erreur lors de la mise à jour du stock';
+        return false;
+      }
+
+    } catch (e) {
+      print('🔍 [PRODUCTS] Erreur mise à jour stock: $e');
+      _showErrorSnackbar('Erreur lors de la mise à jour du stock: $e');
+      return false;
+    }
+  }
+
+  // ========== RECHERCHE ET FILTRES ==========
+
+  void searchProducts(String query) {
+    searchQuery.value = query;
+    currentPage.value = 1;
+    loadProducts(refresh: true);
+  }
+
+  void changeCategory(String category) {
+    selectedCategory.value = category;
+    currentPage.value = 1;
+    loadProducts(refresh: true);
+  }
+
+  Future<void> loadMoreProducts() async {
+    if (!hasMoreProducts.value || isLoading.value) return;
+    
+    currentPage.value++;
+    await loadProducts(page: currentPage.value);
+  }
+
+  Future<void> refreshProducts() async {
+    await loadProducts(refresh: true);
+  }
+
+  // ========== DONNÉES DE FALLBACK ==========
+
+  void _loadFallbackData() {
+    print('🔍 [PRODUCTS] Chargement des données de fallback');
+    products.value = [
+      Product(
+        id: '1',
+        name: 'iPhone 14 Pro',
+        description: 'Smartphone Apple dernière génération avec puce A16',
+        price: 1299.99,
+        category: 'electronique',
+        stock: 25,
+        backgroundColor: Colors.deepPurpleAccent,
+        createdAt: DateTime.now().subtract(Duration(days: 5)),
+      ),
+      Product(
+        id: '2',
+        name: 'Samsung Galaxy S23',
+        description: 'Flagship Android avec caméra avancée',
+        price: 999.99,
+        category: 'electronique',
+        stock: 18,
+        backgroundColor: Colors.orangeAccent,
+        createdAt: DateTime.now().subtract(Duration(days: 3)),
+      ),
+      Product(
+        id: '3',
+        name: 'MacBook Air M2',
+        description: 'Ordinateur portable ultra-léger Apple',
+        price: 1499.99,
+        category: 'electronique',
+        stock: 12,
+        backgroundColor: Colors.red,
+        createdAt: DateTime.now().subtract(Duration(days: 7)),
+      ),
+      Product(
+        id: '4',
+        name: 'Table de Salon',
+        description: 'Table moderne en bois massif',
+        price: 299.99,
+        category: 'maison',
+        stock: 8,
+        backgroundColor: Colors.yellow,
+        createdAt: DateTime.now().subtract(Duration(days: 2)),
+      ),
+      Product(
+        id: '5',
+        name: 'Chaise de Bureau',
+        description: 'Chaise ergonomique pour bureau',
+        price: 199.99,
+        category: 'maison',
+        stock: 5,
+        backgroundColor: Colors.green,
+        createdAt: DateTime.now().subtract(Duration(days: 1)),
+      ),
+      Product(
+        id: '6',
+        name: 'T-shirt Premium',
+        description: 'T-shirt 100% coton bio',
+        price: 29.99,
+        category: 'vetements',
+        stock: 50,
+        backgroundColor: Colors.blue,
+        createdAt: DateTime.now(),
+      ),
+    ];
+    _updateAvailableCategories();
+  }
+
+  // ========== UTILITAIRES ==========
+
+  Future<String?> _getAuthToken() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString('auth_token');
+    } catch (e) {
+      print('🔍 [PRODUCTS] Erreur récupération token: $e');
+      return null;
+    }
+  }
+
   bool _validateProduct(Product product) {
-    // Validation du nom
     if (product.name.trim().isEmpty) {
       _showErrorSnackbar('Le nom du produit est requis');
       return false;
     }
 
-    // Validation du prix
-    if (product.minPrice < 0 || product.maxPrice < 0) {
-      _showErrorSnackbar('Les prix ne peuvent pas être négatifs');
+    if (product.price < 0) {
+      _showErrorSnackbar('Le prix ne peut pas être négatif');
       return false;
     }
 
-    if (product.maxPrice < product.minPrice) {
-      _showErrorSnackbar('Le prix maximum doit être supérieur au prix minimum');
-      return false;
-    }
-
-    // Validation du stock
     if (product.stock < 0) {
       _showErrorSnackbar('Le stock ne peut pas être négatif');
-      return false;
-    }
-
-    // Vérifier si le produit existe déjà (par nom)
-    final existingProduct = products.firstWhereOrNull(
-      (p) => p.name.toLowerCase().trim() == product.name.toLowerCase().trim(),
-    );
-    
-    if (existingProduct != null) {
-      _showErrorSnackbar('Un produit avec ce nom existe déjà');
       return false;
     }
 
     return true;
   }
 
-  /// Upload d'image et retour de l'URL
-  Future<String?> _uploadImageFile(File imageFile) async {
-    try {
-      // TODO: Implémenter l'upload réel vers votre serveur
-      /*
-      final multipartFile = await MultipartFile.fromPath(
-        'image',
-        imageFile.path,
-      );
-
-      final response = await productService.uploadProductImage('temp', multipartFile);
-      
-      if (response.isSuccess && response.data != null) {
-        return response.data!;
-      }
-      */
-
-      // SIMULATION: Retourner un nom de fichier simulé
-      await Future.delayed(Duration(milliseconds: 500));
-      return 'uploaded_${DateTime.now().millisecondsSinceEpoch}_${imageFile.path.split('/').last}';
-      
-    } catch (e) {
-      _showErrorSnackbar('Erreur lors de l\'upload de l\'image: $e');
-      return null;
-    }
-  }
-
-  // ========== AUTRES OPÉRATIONS CRUD (INCHANGÉES) ==========
-
-  /// Mettre à jour un produit
-  Future<void> updateProduct(String id, Product updatedProduct) async {
-    try {
-      isUpdating.value = true;
-      errorMessage.value = '';
-
-      // SIMULATION: Mettre à jour localement
-      final index = products.indexWhere((p) => p.id == id);
-      if (index != -1) {
-        products[index] = updatedProduct.copyWith(
-          id: id,
-          updatedAt: DateTime.now(),
-        );
-        
-        _showSuccessSnackbar('Produit mis à jour avec succès');
-      }
-
-    } catch (e) {
-      errorMessage.value = 'Erreur lors de la mise à jour: $e';
-      _showErrorSnackbar('Erreur lors de la mise à jour: $e');
-    } finally {
-      isUpdating.value = false;
-    }
-  }
-
-  /// Supprimer un produit
-  Future<void> deleteProduct(String id) async {
-    try {
-      isDeleting.value = true;
-      errorMessage.value = '';
-
-      // Confirmation avant suppression
-      final confirmed = await _showDeleteConfirmation();
-      if (!confirmed) return;
-
-      // SIMULATION: Supprimer localement
-      products.removeWhere((p) => p.id == id);
-      _updateAvailableCategories();
-      
-      _showSuccessSnackbar('Produit supprimé avec succès');
-
-    } catch (e) {
-      errorMessage.value = 'Erreur lors de la suppression: $e';
-      _showErrorSnackbar('Erreur lors de la suppression: $e');
-    } finally {
-      isDeleting.value = false;
-    }
-  }
-
-  /// Dialogue de confirmation de suppression
   Future<bool> _showDeleteConfirmation() async {
     return await Get.dialog<bool>(
       AlertDialog(
@@ -392,95 +623,19 @@ class ProductController extends GetxController with GetSingleTickerProviderState
     ) ?? false;
   }
 
-  /// Mettre à jour le stock d'un produit
-  Future<void> updateProductStock(String id, int newStock) async {
-    try {
-      if (newStock < 0) {
-        _showErrorSnackbar('Le stock ne peut pas être négatif');
-        return;
-      }
-
-      // SIMULATION: Mettre à jour le stock localement
-      final index = products.indexWhere((p) => p.id == id);
-      if (index != -1) {
-        products[index] = products[index].copyWith(
-          stock: newStock,
-          updatedAt: DateTime.now(),
-        );
-        
-        _showSuccessSnackbar('Stock mis à jour: $newStock');
-      }
-
-    } catch (e) {
-      _showErrorSnackbar('Erreur lors de la mise à jour du stock: $e');
-    }
+  void _updateAvailableCategories() {
+    final categories = products.map((p) => p.category).toSet().toList();
+    categories.insert(0, 'Group');
+    availableCategories.value = categories;
   }
 
-  /// Upload d'image pour un produit existant
-  Future<void> uploadProductImage(String productId, File imageFile) async {
-    try {
-      isLoading.value = true;
-
-      final uploadedImageUrl = await _uploadImageFile(imageFile);
-      
-      if (uploadedImageUrl != null) {
-        final index = products.indexWhere((p) => p.id == productId);
-        if (index != -1) {
-          products[index] = products[index].copyWith(
-            imageUrl: uploadedImageUrl,
-            updatedAt: DateTime.now(),
-          );
-          
-          _showSuccessSnackbar('Image uploadée avec succès');
-        }
-      }
-
-    } catch (e) {
-      _showErrorSnackbar('Erreur lors de l\'upload d\'image: $e');
-    } finally {
-      isLoading.value = false;
-    }
-  }
-
-  // ========== RECHERCHE ET FILTRES ==========
-
-  void searchProducts(String query) {
-    searchQuery.value = query;
-    currentPage.value = 1;
-    loadProducts(refresh: true);
-  }
-
-  void changeCategory(String category) {
-    selectedCategory.value = category;
-    currentPage.value = 1;
-    loadProducts(refresh: true);
-  }
-
-  void sortProducts(String field, String order) {
-    sortBy.value = field;
-    sortOrder.value = order;
-    currentPage.value = 1;
-    loadProducts(refresh: true);
-  }
-
-  Future<void> loadMoreProducts() async {
-    if (!hasMoreProducts.value || isLoading.value) return;
-    
-    currentPage.value++;
-    await loadProducts();
-  }
-
-  Future<void> refreshProducts() async {
-    currentPage.value = 1;
-    await loadProducts(refresh: true, useCache: false);
-  }
-
-  // ========== FILTRES ET HELPERS ==========
+  // ========== FILTRES ET GETTERS ==========
 
   List<Product> get filteredProducts {
     var filtered = products.where((product) {
       final matchesSearch = searchQuery.value.isEmpty || 
-          product.name.toLowerCase().contains(searchQuery.value.toLowerCase());
+          product.name.toLowerCase().contains(searchQuery.value.toLowerCase()) ||
+          product.description.toLowerCase().contains(searchQuery.value.toLowerCase());
       
       final matchesCategory = selectedCategory.value == 'Group' || 
           product.category == selectedCategory.value;
@@ -488,41 +643,7 @@ class ProductController extends GetxController with GetSingleTickerProviderState
       return matchesSearch && matchesCategory;
     }).toList();
 
-    // Tri local
-    switch (sortBy.value) {
-      case 'name':
-        filtered.sort((a, b) => sortOrder.value == 'asc' 
-            ? a.name.compareTo(b.name)
-            : b.name.compareTo(a.name));
-        break;
-      case 'price':
-        filtered.sort((a, b) => sortOrder.value == 'asc'
-            ? a.minPrice.compareTo(b.minPrice)
-            : b.minPrice.compareTo(a.minPrice));
-        break;
-      case 'stock':
-        filtered.sort((a, b) => sortOrder.value == 'asc'
-            ? a.stock.compareTo(b.stock)
-            : b.stock.compareTo(a.stock));
-        break;
-      case 'date':
-        filtered.sort((a, b) {
-          final aDate = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-          final bDate = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-          return sortOrder.value == 'asc'
-              ? aDate.compareTo(bDate)
-              : bDate.compareTo(aDate);
-        });
-        break;
-    }
-
     return filtered;
-  }
-
-  void _updateAvailableCategories() {
-    final categories = products.map((p) => p.category).toSet().toList();
-    categories.insert(0, 'Group'); // Ajouter "Tous" en premier
-    availableCategories.value = categories;
   }
 
   // ========== NOTIFICATIONS ==========
@@ -561,47 +682,17 @@ class ProductController extends GetxController with GetSingleTickerProviderState
         'lowStock': 0,
         'averagePrice': 0.0,
         'totalValue': 0.0,
-        'recentlyAdded': 0,
       };
     }
 
-    final now = DateTime.now();
-    final weekAgo = now.subtract(Duration(days: 7));
-    
     return {
-      'total': products.length,
-      'categories': availableCategories.length - 1, // -1 pour exclure "Group"
+      'total': totalProducts.value > 0 ? totalProducts.value : products.length,
+      'categories': availableCategories.length - 1,
       'lowStock': products.where((p) => p.isLowStock).length,
       'outOfStock': products.where((p) => p.isOutOfStock).length,
-      'averagePrice': products.map((p) => p.averagePrice).reduce((a, b) => a + b) / products.length,
+      'averagePrice': products.map((p) => p.price).reduce((a, b) => a + b) / products.length,
       'totalValue': products.map((p) => p.stockValue).reduce((a, b) => a + b),
-      'recentlyAdded': products.where((p) => 
-          p.createdAt != null && p.createdAt!.isAfter(weekAgo)
-      ).length,
     };
-  }
-
-  // ========== UTILITAIRES ==========
-
-  /// Obtenir un produit par ID
-  Product? getProductById(String id) {
-    try {
-      return products.firstWhere((p) => p.id == id);
-    } catch (e) {
-      return null;
-    }
-  }
-
-  /// Vérifier si un nom de produit existe déjà
-  bool productNameExists(String name) {
-    return products.any((p) => 
-        p.name.toLowerCase().trim() == name.toLowerCase().trim()
-    );
-  }
-
-  /// Obtenir les catégories disponibles (sans "Group")
-  List<String> get realCategories {
-    return availableCategories.where((cat) => cat != 'Group').toList();
   }
 
   @override
@@ -611,23 +702,4 @@ class ProductController extends GetxController with GetSingleTickerProviderState
   }
 }
 
-// ========== EXTENSIONS UTILES ==========
-
-extension ProductExtension on Product {
-  bool get isOutOfStock => stock <= 0;
-  bool get isLowStock => stock < 10 && stock > 0;
-  double get averagePrice => (minPrice + maxPrice) / 2;
-  double get stockValue => stock * minPrice;
-  
-  String get stockStatusText {
-    if (isOutOfStock) return 'Rupture de stock';
-    if (isLowStock) return 'Stock faible';
-    return 'En stock';
-  }
-  
-  Color get stockStatusColor {
-    if (isOutOfStock) return Colors.red;
-    if (isLowStock) return Colors.orange;
-    return Colors.green;
-  }
-}
+// ========== SERVICE API FICTIF (remplacez par votre vrai service) ==========

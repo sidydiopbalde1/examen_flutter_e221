@@ -1,10 +1,11 @@
+import 'package:examen_flutter/app/modules/models/Product.dart';
 import 'package:examen_flutter/app/modules/product/controllers/product_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 
-class AddProductController extends GetxController {
+class EditProductController extends GetxController {
   final formKey = GlobalKey<FormState>();
   final nameController = TextEditingController();
   final descriptionController = TextEditingController();
@@ -14,8 +15,12 @@ class AddProductController extends GetxController {
   RxBool isLoading = false.obs;
   Rx<File?> selectedImage = Rx<File?>(null);
   RxString selectedCategory = 'electronique'.obs;
+  RxString currentImageUrl = ''.obs;
+  
+  // Produit en cours de modification
+  late Product originalProduct;
 
-  // Catégories adaptées à votre API (basées sur vos données)
+  // Catégories disponibles
   final List<String> categories = [
     'electronique',
     'maison',
@@ -31,6 +36,19 @@ class AddProductController extends GetxController {
     'bricolage',
   ];
 
+  // Initialiser avec un produit existant
+  void initializeWithProduct(Product product) {
+    originalProduct = product;
+    
+    // Pré-remplir les champs
+    nameController.text = product.name;
+    descriptionController.text = product.description;
+    priceController.text = product.price.toString();
+    stockController.text = product.stock.toString();
+    selectedCategory.value = product.category;
+    currentImageUrl.value = product.imageUrl;
+  }
+
   Future<void> pickImage() async {
     try {
       final ImagePicker picker = ImagePicker();
@@ -43,15 +61,15 @@ class AddProductController extends GetxController {
       
       if (image != null) {
         selectedImage.value = File(image.path);
-        _showSuccess('Image sélectionnée avec succès');
+        _showSuccess('Nouvelle image sélectionnée');
       }
     } catch (e) {
-      print('🔍 [ADD_PRODUCT] Erreur sélection image: $e');
+      print('🔍 [EDIT_PRODUCT] Erreur sélection image: $e');
       _showError('Impossible de sélectionner l\'image: $e');
     }
   }
 
-  Future<void> addProduct() async {
+  Future<void> updateProduct() async {
     if (!formKey.currentState!.validate()) return;
 
     try {
@@ -76,30 +94,44 @@ class AddProductController extends GetxController {
         return;
       }
 
-      print('🔍 [ADD_PRODUCT] Création produit: $name, $price, $stock');
+      print('🔍 [EDIT_PRODUCT] Modification produit: $name, $price, $stock');
 
-      // Appeler la méthode de création avec les données adaptées
-      final success = await productController.createProductFromForm(
+      // Créer le produit mis à jour
+      final updatedProduct = originalProduct.copyWith(
         name: name,
+        description: description,
+        price: price,
         category: selectedCategory.value,
-        minPrice: price,
-        maxPrice: price, // Même prix pour compatibilité
         stock: stock,
-        backgroundColorHex: '#E0E0E0', // Couleur par défaut
-        imageFile: selectedImage.value,
-        description: description.isNotEmpty ? description : 'Description du produit',
+        updatedAt: DateTime.now(),
+      );
+
+      // Si une nouvelle image est sélectionnée, l'uploader d'abord
+      if (selectedImage.value != null) {
+        print('🔍 [EDIT_PRODUCT] Upload de la nouvelle image...');
+        // TODO: Implémenter l'upload de la nouvelle image
+        // final uploadSuccess = await _uploadProductImage(selectedImage.value!);
+        // if (!uploadSuccess) {
+        //   _showError('Erreur lors de l\'upload de l\'image');
+        //   return;
+        // }
+      }
+
+      // Appeler la méthode de mise à jour
+      final success = await productController.updateProduct(
+        originalProduct.id!,
+        updatedProduct,
       );
 
       if (success) {
-        _showSuccess('Produit ajouté avec succès !');
-        _resetForm();
+        _showSuccess('Produit modifié avec succès !');
         Get.back(); // Fermer le modal
       } else {
-        _showError('Erreur lors de l\'ajout du produit');
+        _showError('Erreur lors de la modification du produit');
       }
 
     } catch (e) {
-      print('🔍 [ADD_PRODUCT] Erreur ajout: $e');
+      print('🔍 [EDIT_PRODUCT] Erreur modification: $e');
       _showError('Erreur inattendue: $e');
     } finally {
       isLoading.value = false;
@@ -164,7 +196,10 @@ class AddProductController extends GetxController {
   }
 
   String? validateDescription(String? value) {
-    if (value != null && value.trim().length > 500) {
+    if (value == null || value.trim().isEmpty) {
+      return 'La description est requise';
+    }
+    if (value.trim().length > 500) {
       return 'La description ne peut pas dépasser 500 caractères';
     }
     return null;
@@ -184,6 +219,7 @@ class AddProductController extends GetxController {
 
   Widget buildImagePreview() {
     return Obx(() {
+      // Si une nouvelle image est sélectionnée
       if (selectedImage.value != null) {
         return Stack(
           children: [
@@ -223,50 +259,76 @@ class AddProductController extends GetxController {
             ),
           ],
         );
-      } else {
-        return GestureDetector(
-          onTap: pickImage,
-          child: Container(
-            width: double.infinity,
-            height: 200,
-            decoration: BoxDecoration(
-              color: Colors.grey[100],
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: Colors.grey[300]!,
-                width: 2,
-              ),
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.add_a_photo,
-                  size: 48,
-                  color: Colors.grey[400],
-                ),
-                SizedBox(height: 12),
-                Text(
-                  'Appuyez pour ajouter une image',
-                  style: TextStyle(
-                    color: Colors.grey[600],
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  'Format: JPG, PNG (max 5MB)',
-                  style: TextStyle(
-                    color: Colors.grey[500],
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
       }
+      
+      // Afficher l'image actuelle ou placeholder
+      return GestureDetector(
+        onTap: pickImage,
+        child: Container(
+          width: double.infinity,
+          height: 200,
+          decoration: BoxDecoration(
+            color: Colors.grey[100],
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey[300]!),
+          ),
+          child: currentImageUrl.value.isNotEmpty
+              ? ClipRRect(
+                  borderRadius: BorderRadius.circular(11),
+                  child: Stack(
+                    children: [
+                      Image.network(
+                        currentImageUrl.value,
+                        fit: BoxFit.cover,
+                        width: double.infinity,
+                        height: double.infinity,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.broken_image, size: 48, color: Colors.grey[400]),
+                              SizedBox(height: 8),
+                              Text('Image non disponible', style: TextStyle(color: Colors.grey[600])),
+                            ],
+                          );
+                        },
+                      ),
+                      Positioned(
+                        bottom: 8,
+                        right: 8,
+                        child: Container(
+                          padding: EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.black54,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Icon(
+                            Icons.edit,
+                            color: Colors.white,
+                            size: 16,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.add_a_photo, size: 48, color: Colors.grey[400]),
+                    SizedBox(height: 12),
+                    Text(
+                      'Appuyez pour changer l\'image',
+                      style: TextStyle(
+                        color: Colors.grey[600],
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+        ),
+      );
     });
   }
 
@@ -303,12 +365,12 @@ class AddProductController extends GetxController {
     ));
   }
 
-  Widget buildSubmitButton() {
+  Widget buildUpdateButton() {
     return Obx(() => Container(
       width: double.infinity,
       height: 56,
       child: ElevatedButton(
-        onPressed: isLoading.value ? null : addProduct,
+        onPressed: isLoading.value ? null : updateProduct,
         style: ElevatedButton.styleFrom(
           backgroundColor: Color(0xFF6F42C1),
           foregroundColor: Colors.white,
@@ -332,7 +394,7 @@ class AddProductController extends GetxController {
                   ),
                   SizedBox(width: 12),
                   Text(
-                    'Ajout en cours...',
+                    'Modification en cours...',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
@@ -343,10 +405,10 @@ class AddProductController extends GetxController {
             : Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.add_shopping_cart, size: 22),
+                  Icon(Icons.save, size: 22),
                   SizedBox(width: 8),
                   Text(
-                    'Ajouter le produit',
+                    'Modifier le produit',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
@@ -364,6 +426,7 @@ class AddProductController extends GetxController {
         'Nom': validateName(nameController.text) == null,
         'Prix': validatePrice(priceController.text) == null,
         'Stock': validateStock(stockController.text) == null,
+        'Description': validateDescription(descriptionController.text) == null,
         'Catégorie': validateCategory(selectedCategory.value) == null,
       };
       
@@ -392,7 +455,7 @@ class AddProductController extends GetxController {
                 SizedBox(width: 8),
                 Text(
                   validCount == totalCount 
-                      ? 'Formulaire prêt ✓'
+                      ? 'Formulaire prêt pour modification'
                       : 'Progression: $validCount/$totalCount',
                   style: TextStyle(
                     color: validCount == totalCount ? Colors.green[700] : Colors.orange[700],
@@ -493,16 +556,6 @@ class AddProductController extends GetxController {
       default:
         return category[0].toUpperCase() + category.substring(1);
     }
-  }
-
-  void _resetForm() {
-    formKey.currentState?.reset();
-    nameController.clear();
-    descriptionController.clear();
-    priceController.clear();
-    stockController.clear();
-    selectedImage.value = null;
-    selectedCategory.value = 'electronique';
   }
 
   void _showSuccess(String message) {

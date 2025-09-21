@@ -1,4 +1,5 @@
 import 'package:examen_flutter/app/modules/product/controllers/add_product_controller.dart';
+import 'package:examen_flutter/app/modules/product/controllers/edit_product_controller.dart';
 import 'package:get/get.dart';
 
 import '../controllers/product_controller.dart';
@@ -11,6 +12,9 @@ class ProductBinding extends Bindings {
     );
      Get.lazyPut<AddProductController>(
       () => AddProductController(),
+    );
+      Get.lazyPut<EditProductController>(
+      () => EditProductController(),
     );
   }
 }

@@ -1,7 +1,7 @@
-
 import 'package:examen_flutter/app/modules/models/Product.dart';
 import 'package:examen_flutter/app/modules/product/controllers/add_product_controller.dart';
 import 'package:examen_flutter/app/modules/product/controllers/product_controller.dart';
+import 'package:examen_flutter/app/modules/product/views/edit_product_modal.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -37,26 +37,20 @@ class ProductView extends StatelessWidget {
                       child: _buildSidebar(),
                     ),
                     Expanded(
-                      child: _buildMainContent(),
+                      child: _buildMainContent(constraints),
                     ),
                   ],
                 );
               } else {
                 // Mobile layout - show only main content with drawer
-                return _buildMainContent();
+                return _buildMainContent(constraints);
               }
             },
           ),
         ),
       ),
       // Bouton flottant pour ajouter un produit
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showAddProductModal(context),
-        backgroundColor: Color(0xFF6F42C1),
-        foregroundColor: Colors.white,
-        icon: Icon(Icons.add),
-        label: Text('Ajouter'),
-      ),
+     
     );
   }
 
@@ -114,7 +108,7 @@ class ProductView extends StatelessWidget {
               child: Column(
                 children: [
                   _buildNavItem(Icons.grid_view_outlined, 'Overview', false),
-                  _buildNavItem(Icons.inventory_2_outlined, 'Product', true),
+                  _buildNavItem(Icons.inventory_2_outlined, 'Product', false),
                   
                   // Sub items for Product
                   Container(
@@ -136,97 +130,128 @@ class ProductView extends StatelessWidget {
                   
                   Spacer(),
                   
-                  // Footer section
-                  Container(
-                    padding: EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Technical help',
-                          style: TextStyle(
-                            color: Colors.grey[600],
-                            fontSize: 13,
-                          ),
-                        ),
-                        SizedBox(height: 8),
-                        Text(
-                          'Contact us',
-                          style: TextStyle(
-                            color: Colors.grey[600],
-                            fontSize: 13,
-                          ),
-                        ),
-                        SizedBox(height: 16),
-                        Text(
-                          'Release you maximum potential with our potential software',
-                          style: TextStyle(
-                            color: Colors.grey[600],
-                            fontSize: 11,
-                            height: 1.3,
-                          ),
-                        ),
-                        SizedBox(height: 16),
-                        
-                        // Warning stripe
-                        Container(
-                          width: double.infinity,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [Colors.yellow[600]!, Colors.black],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: CustomPaint(
-                            painter: StripePainter(),
-                            child: Center(
-                              child: Text(
-                                'BOTTOM OVERFLOW BY 67 PIXELS',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 8,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        SizedBox(height: 8),
-                        
-                        Container(
-                          width: double.infinity,
-                          height: 36,
-                          child: ElevatedButton(
-                            onPressed: () {},
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Color(0xFF6F42C1),
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              elevation: 0,
-                            ),
-                            child: Text(
-                              'Upgrade to Pro',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                  // Footer section avec statistiques
+                  _buildStatsSection(),
                 ],
               ),
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildStatsSection() {
+    return Obx(() {
+      final stats = controller.productStats;
+      return Container(
+        padding: EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Statistiques',
+              style: TextStyle(
+                color: Colors.grey[700],
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            SizedBox(height: 12),
+            
+            // Total produits
+            _buildStatItem(
+              icon: Icons.inventory_2,
+              label: 'Total produits',
+              value: '${stats['total']}',
+              color: Color(0xFF6F42C1),
+            ),
+            
+            SizedBox(height: 8),
+            
+            // Stock faible
+            _buildStatItem(
+              icon: Icons.warning,
+              label: 'Stock faible',
+              value: '${stats['lowStock']}',
+              color: Colors.orange,
+            ),
+            
+            SizedBox(height: 8),
+            
+            // Rupture de stock
+            _buildStatItem(
+              icon: Icons.error,
+              label: 'Rupture stock',
+              value: '${stats['outOfStock']}',
+              color: Colors.red,
+            ),
+            
+            SizedBox(height: 16),
+            
+            Container(
+              width: double.infinity,
+              height: 36,
+              child: ElevatedButton(
+                onPressed: () => controller.refreshProducts(),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Color(0xFF6F42C1),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  elevation: 0,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.refresh, size: 16),
+                    SizedBox(width: 4),
+                    Text(
+                      'Actualiser',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    });
+  }
+
+  Widget _buildStatItem({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+  }) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: color),
+        SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(
+              color: Colors.grey[600],
+              fontSize: 12,
+            ),
+          ),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            color: color,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
     );
   }
 
@@ -278,7 +303,7 @@ class ProductView extends StatelessWidget {
     );
   }
 
-  Widget _buildMainContent() {
+  Widget _buildMainContent(BoxConstraints constraints) {
     return Container(
       padding: EdgeInsets.all(24),
       child: Column(
@@ -287,7 +312,7 @@ class ProductView extends StatelessWidget {
           Row(
             children: [
               Text(
-                'Group',
+                'Produits',
                 style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
@@ -295,6 +320,32 @@ class ProductView extends StatelessWidget {
                 ),
               ),
               Spacer(),
+              
+              // Filtres de catégorie
+              Obx(() => Container(
+                height: 36,
+                padding: EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey[300]!),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: DropdownButton<String>(
+                  value: controller.selectedCategory.value,
+                  onChanged: (value) => controller.changeCategory(value!),
+                  underline: Container(),
+                  items: controller.availableCategories.map((category) {
+                    return DropdownMenuItem(
+                      value: category,
+                      child: Text(
+                        category == 'Group' ? 'Toutes catégories' : category,
+                        style: TextStyle(fontSize: 14),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              )),
+              
+              SizedBox(width: 12),
               
               // Search bar
               Container(
@@ -308,7 +359,7 @@ class ProductView extends StatelessWidget {
                 child: TextField(
                   onChanged: (value) => controller.searchProducts(value),
                   decoration: InputDecoration(
-                    hintText: 'Search group...',
+                    hintText: 'Rechercher...',
                     hintStyle: TextStyle(color: Colors.grey[500], fontSize: 14),
                     prefixIcon: Icon(Icons.search, color: Colors.grey[500], size: 18),
                     border: InputBorder.none,
@@ -320,14 +371,14 @@ class ProductView extends StatelessWidget {
               
               SizedBox(width: 12),
               
-              // Add Group button
+              // Add Product button
               Container(
                 height: 36,
                 child: ElevatedButton.icon(
                   onPressed: () => _showAddProductModal(Get.context!),
                   icon: Icon(Icons.add, size: 16, color: Colors.white),
                   label: Text(
-                    'Add Product',
+                    'Ajouter',
                     style: TextStyle(fontSize: 14, color: Colors.white),
                   ),
                   style: ElevatedButton.styleFrom(
@@ -351,15 +402,71 @@ class ProductView extends StatelessWidget {
             child: Obx(() {
               if (controller.isLoading.value) {
                 return Center(
-                  child: CircularProgressIndicator(
-                    color: Color(0xFF6F42C1),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      CircularProgressIndicator(
+                        color: Color(0xFF6F42C1),
+                      ),
+                      SizedBox(height: 16),
+                      Text(
+                        'Chargement des produits...',
+                        style: TextStyle(
+                          color: Colors.grey[600],
+                          fontSize: 16,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+              
+              if (controller.filteredProducts.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.inventory_2_outlined,
+                        size: 64,
+                        color: Colors.grey[400],
+                      ),
+                      SizedBox(height: 16),
+                      Text(
+                        'Aucun produit trouvé',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        'Commencez par ajouter votre premier produit',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey[500],
+                        ),
+                      ),
+                      SizedBox(height: 24),
+                      ElevatedButton.icon(
+                        onPressed: () => _showAddProductModal(Get.context!),
+                        icon: Icon(Icons.add),
+                        label: Text('Ajouter un produit'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Color(0xFF6F42C1),
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
+                    ],
                   ),
                 );
               }
               
               return GridView.builder(
                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 3,
+                  crossAxisCount: constraints.maxWidth > 1200 ? 4 : 
+                                constraints.maxWidth > 800 ? 3 : 2,
                   childAspectRatio: 0.85,
                   crossAxisSpacing: 16,
                   mainAxisSpacing: 16,
@@ -426,19 +533,30 @@ class ProductView extends StatelessWidget {
                           topLeft: Radius.circular(8),
                           topRight: Radius.circular(8),
                         ),
-                        child: Image.asset(
-                          'assets/images/${product.imageUrl}',
-                          fit: BoxFit.contain,
-                          width: double.infinity,
-                          height: double.infinity,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Icon(
-                              Icons.image_not_supported,
-                              size: 32,
-                              color: Colors.grey[400],
-                            );
-                          },
-                        ),
+                        child: product.images.isNotEmpty
+                            ? Image.network(
+                                product.imageUrl,
+                                fit: BoxFit.contain,
+                                width: double.infinity,
+                                height: double.infinity,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return _buildDefaultProductIcon(product.category);
+                                },
+                                loadingBuilder: (context, child, loadingProgress) {
+                                  if (loadingProgress == null) return child;
+                                  return Center(
+                                    child: CircularProgressIndicator(
+                                      value: loadingProgress.expectedTotalBytes != null
+                                          ? loadingProgress.cumulativeBytesLoaded /
+                                              loadingProgress.expectedTotalBytes!
+                                          : null,
+                                      color: Color(0xFF6F42C1),
+                                      strokeWidth: 2,
+                                    ),
+                                  );
+                                },
+                              )
+                            : _buildDefaultProductIcon(product.category),
                       ),
                     ),
                     // Actions overlay
@@ -520,6 +638,19 @@ class ProductView extends StatelessWidget {
                       ),
                     ),
                     
+                    if (product.description.isNotEmpty) ...[
+                      SizedBox(height: 4),
+                      Text(
+                        product.description,
+                        style: TextStyle(
+                          color: Colors.grey[500],
+                          fontSize: 10,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                    
                     Spacer(),
                     
                     // Price and stock
@@ -527,11 +658,11 @@ class ProductView extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          '\$${product.minPrice.toStringAsFixed(2)} - \$${product.maxPrice.toStringAsFixed(2)}',
+                          '\$${product.price.toStringAsFixed(2)}',
                           style: TextStyle(
                             color: Color(0xFF6F42C1),
                             fontWeight: FontWeight.w600,
-                            fontSize: 11,
+                            fontSize: 12,
                           ),
                         ),
                         Container(
@@ -561,71 +692,242 @@ class ProductView extends StatelessWidget {
     );
   }
 
-  void _showProductActions(Product product) {
-    Get.bottomSheet(
-      Container(
-        padding: EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(20),
-            topRight: Radius.circular(20),
-          ),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              product.name,
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            SizedBox(height: 20),
-            ListTile(
-              leading: Icon(Icons.edit, color: Color(0xFF6F42C1)),
-              title: Text('Modifier le produit'),
-              onTap: () {
-                Get.back();
-                // TODO: Implementer la modification
-              },
-            ),
-            ListTile(
-              leading: Icon(Icons.inventory, color: Colors.orange),
-              title: Text('Gérer le stock'),
-              onTap: () {
-                Get.back();
-                _showStockDialog(product);
-              },
-            ),
-            ListTile(
-              leading: Icon(Icons.delete, color: Colors.red),
-              title: Text('Supprimer'),
-              onTap: () {
-                Get.back();
-                controller.deleteProduct(product.id!);
-              },
-            ),
-          ],
-        ),
-      ),
+  Widget _buildDefaultProductIcon(String category) {
+    IconData iconData;
+    switch (category.toLowerCase()) {
+      case 'electronique':
+        iconData = Icons.phone_android;
+        break;
+      case 'maison':
+        iconData = Icons.home;
+        break;
+      case 'vetements':
+        iconData = Icons.checkroom;
+        break;
+      case 'sport':
+        iconData = Icons.sports_soccer;
+        break;
+      case 'livre':
+        iconData = Icons.book;
+        break;
+      case 'sante':
+        iconData = Icons.local_hospital;
+        break;
+      case 'beaute':
+        iconData = Icons.face;
+        break;
+      case 'automobile':
+        iconData = Icons.directions_car;
+        break;
+      case 'jardin':
+        iconData = Icons.grass;
+        break;
+      case 'jouets':
+        iconData = Icons.toys;
+        break;
+      case 'alimentaire':
+        iconData = Icons.restaurant;
+        break;
+      case 'bricolage':
+        iconData = Icons.build;
+        break;
+      default:
+        iconData = Icons.inventory_2;
+    }
+    
+    return Icon(
+      iconData,
+      size: 32,
+      color: Colors.grey[400],
     );
   }
 
-  void _handleProductAction(String action, Product product) {
-    switch (action) {
-      case 'edit':
-        // TODO: Implementer la modification
-        break;
-      case 'stock':
-        _showStockDialog(product);
-        break;
-      case 'delete':
-        controller.deleteProduct(product.id!);
-        break;
-    }
+ void _showProductActions(Product product) {
+  Get.bottomSheet(
+    Container(
+      padding: EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(20),
+          topRight: Radius.circular(20),
+        ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // En-tête avec info produit
+          Container(
+            padding: EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.grey[50],
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 50,
+                  height: 50,
+                  decoration: BoxDecoration(
+                    color: product.backgroundColor,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: product.images.isNotEmpty
+                      ? ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.network(
+                            product.imageUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return _buildDefaultProductIcon(product.category);
+                            },
+                          ),
+                        )
+                      : _buildDefaultProductIcon(product.category),
+                ),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        product.name,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        product.description,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey[600],
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Text(
+                            '\$${product.price.toStringAsFixed(2)}',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF6F42C1),
+                            ),
+                          ),
+                          SizedBox(width: 12),
+                          Container(
+                            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: product.stockStatusColor.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              'Stock: ${product.stock}',
+                              style: TextStyle(
+                                color: product.stockStatusColor,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          SizedBox(height: 20),
+          
+          // Actions
+          ListTile(
+            leading: Container(
+              padding: EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.orange.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(Icons.edit, color: Colors.orange, size: 20),
+            ),
+            title: Text('Modifier le produit'),
+            subtitle: Text('Changer les informations du produit'),
+            onTap: () {
+              Get.back();
+              _showEditProductModal(product);
+            },
+          ),
+          
+          ListTile(
+            leading: Container(
+              padding: EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(Icons.inventory, color: Colors.blue, size: 20),
+            ),
+            title: Text('Gérer le stock'),
+            subtitle: Text('Modifier la quantité en stock'),
+            onTap: () {
+              Get.back();
+              _showStockDialog(product);
+            },
+          ),
+          
+          ListTile(
+            leading: Container(
+              padding: EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(Icons.delete, color: Colors.red, size: 20),
+            ),
+            title: Text('Supprimer'),
+            subtitle: Text('Supprimer définitivement ce produit'),
+            onTap: () {
+              Get.back();
+              controller.deleteProduct(product.id!);
+            },
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+// Ajoutez cette nouvelle méthode pour afficher le modal de modification
+void _showEditProductModal(Product product) {
+  showModalBottomSheet(
+    context: Get.context!,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (context) => EditProductModal(product: product),
+  );
+}
+
+void _handleProductAction(String action, Product product) {
+  switch (action) {
+    case 'edit':
+      _showEditProductModal(product);
+      break;
+    case 'stock':
+      _showStockDialog(product);
+      break;
+    case 'delete':
+      controller.deleteProduct(product.id!);
+      break;
   }
+}
 
   void _showStockDialog(Product product) {
     final stockController = TextEditingController(text: product.stock.toString());
@@ -644,6 +946,7 @@ class ProductView extends StatelessWidget {
               decoration: InputDecoration(
                 labelText: 'Nouveau stock',
                 border: OutlineInputBorder(),
+                suffixText: 'unités',
               ),
             ),
           ],
@@ -659,95 +962,66 @@ class ProductView extends StatelessWidget {
               if (newStock != null) {
                 controller.updateProductStock(product.id!, newStock);
                 Get.back();
+              } else {
+                _showErrorSnackbar('Veuillez saisir un nombre valide');
               }
             },
-            child: Text('Confirmer'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Color(0xFF6F42C1),
+            ),
+            child: Text('Confirmer', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildProductIcon(String iconName) {
-    IconData iconData;
-    double size = 32;
-    
-    switch (iconName) {
-      case 'speaker':
-        iconData = Icons.speaker;
-        break;
-      case 'magnifier':
-        iconData = Icons.search;
-        break;
-      case 'camera':
-        iconData = Icons.camera_alt;
-        break;
-      case 'headphones':
-        iconData = Icons.headphones;
-        break;
-      case 'watch':
-        iconData = Icons.watch;
-        break;
-      case 'instant_camera':
-        iconData = Icons.camera;
-        break;
-      default:
-        iconData = Icons.device_unknown;
-    }
-    
-    return Icon(
-      iconData,
-      size: size,
-      color: Colors.black54,
+  void _showInfoSnackbar(String message) {
+    Get.snackbar(
+      'Information',
+      message,
+      snackPosition: SnackPosition.TOP,
+      backgroundColor: Colors.blue[100],
+      colorText: Colors.blue[800],
+      duration: Duration(seconds: 3),
+      icon: Icon(Icons.info, color: Colors.blue[800]),
+    );
+  }
+
+  void _showErrorSnackbar(String message) {
+    Get.snackbar(
+      'Erreur',
+      message,
+      snackPosition: SnackPosition.TOP,
+      backgroundColor: Colors.red[100],
+      colorText: Colors.red[800],
+      duration: Duration(seconds: 3),
+      icon: Icon(Icons.error, color: Colors.red[800]),
     );
   }
 }
 
-// Modal d'ajout de produit
+// Modal d'ajout de produit adapté
 class AddProductModal extends StatelessWidget {
   final AddProductController controller = Get.put(AddProductController());
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: MediaQuery.of(context).size.height * 0.9,
+      height: MediaQuery.of(context).size.height * 0.92,
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(20),
-          topRight: Radius.circular(20),
+          topLeft: Radius.circular(24),
+          topRight: Radius.circular(24),
         ),
       ),
       child: Column(
         children: [
-          // Header
-          Container(
-            padding: EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              border: Border(bottom: BorderSide(color: Colors.grey[200]!)),
-            ),
-            child: Row(
-              children: [
-                Text(
-                  'Ajouter un produit',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Spacer(),
-                IconButton(
-                  onPressed: () => Get.back(),
-                  icon: Icon(Icons.close),
-                ),
-              ],
-            ),
-          ),
-          
-          // Content
+          _buildHeader(),
           Expanded(
             child: SingleChildScrollView(
-              padding: EdgeInsets.all(20),
+              padding: EdgeInsets.fromLTRB(24, 0, 24, 24),
               child: Form(
                 key: controller.formKey,
                 child: Column(
@@ -757,14 +1031,73 @@ class AddProductModal extends StatelessWidget {
                     SizedBox(height: 24),
                     _buildBasicInfoSection(),
                     SizedBox(height: 24),
-                    _buildPriceSection(),
+                    _buildPriceStockSection(),
                     SizedBox(height: 24),
-                    _buildColorSection(),
+                    controller.buildValidationIndicator(),
                     SizedBox(height: 32),
-                    _buildSubmitButton(),
+                    controller.buildSubmitButton(),
                   ],
                 ),
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Container(
+      padding: EdgeInsets.fromLTRB(24, 20, 24, 20),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: Colors.grey[200]!, width: 1),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: Color(0xFF6F42C1).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              Icons.add_shopping_cart,
+              color: Color(0xFF6F42C1),
+              size: 22,
+            ),
+          ),
+          SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Nouveau produit',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+                Text(
+                  'Ajoutez un nouveau produit à votre catalogue',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: () => Get.back(),
+            icon: Icon(Icons.close, color: Colors.grey[600]),
+            style: IconButton.styleFrom(
+              backgroundColor: Colors.grey[100],
+              shape: CircleBorder(),
             ),
           ),
         ],
@@ -776,45 +1109,22 @@ class AddProductModal extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Image du produit',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
+        Row(
+          children: [
+            Icon(Icons.image, color: Color(0xFF6F42C1), size: 20),
+            SizedBox(width: 8),
+            Text(
+              'Image du produit',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
+            ),
+          ],
         ),
         SizedBox(height: 12),
-        Obx(() => GestureDetector(
-          onTap: controller.pickImage,
-          child: Container(
-            width: double.infinity,
-            height: 150,
-            decoration: BoxDecoration(
-              color: Colors.grey[100],
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey[300]!),
-            ),
-            child: controller.selectedImage.value != null
-                ? ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: Image.file(
-                      controller.selectedImage.value!,
-                      fit: BoxFit.cover,
-                    ),
-                  )
-                : Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.add_a_photo, size: 40, color: Colors.grey[400]),
-                      SizedBox(height: 8),
-                      Text(
-                        'Appuyez pour ajouter une image',
-                        style: TextStyle(color: Colors.grey[600]),
-                      ),
-                    ],
-                  ),
-          ),
-        )),
+        controller.buildImagePreview(),
       ],
     );
   }
@@ -823,121 +1133,132 @@ class AddProductModal extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Informations de base',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
+        Row(
+          children: [
+            Icon(Icons.info_outline, color: Color(0xFF6F42C1), size: 20),
+            SizedBox(width: 8),
+            Text(
+              'Informations de base',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
+            ),
+          ],
         ),
         SizedBox(height: 16),
         
-        // Nom
+        // Nom du produit
         TextFormField(
           controller: controller.nameController,
           decoration: InputDecoration(
             labelText: 'Nom du produit *',
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            hintText: 'Ex: iPhone 14 Pro Max',
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            prefixIcon: Icon(Icons.shopping_bag_outlined),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Color(0xFF6F42C1), width: 2),
+            ),
           ),
-          validator: (value) {
-            if (value == null || value.isEmpty) {
-              return 'Le nom est requis';
-            }
-            return null;
-          },
+          validator: controller.validateName,
+          textCapitalization: TextCapitalization.words,
         ),
         
         SizedBox(height: 16),
         
         // Catégorie
-        Obx(() => DropdownButtonFormField<String>(
-          value: controller.selectedCategory.value,
-          decoration: InputDecoration(
-            labelText: 'Catégorie *',
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-          ),
-          items: controller.categories.map((category) {
-            return DropdownMenuItem(value: category, child: Text(category));
-          }).toList(),
-          onChanged: (value) => controller.selectedCategory.value = value!,
-        )),
+        controller.buildCategorySelector(),
         
         SizedBox(height: 16),
         
-        // Stock
+        // Description
         TextFormField(
-          controller: controller.stockController,
-          keyboardType: TextInputType.number,
+          controller: controller.descriptionController,
+          maxLines: 3,
           decoration: InputDecoration(
-            labelText: 'Stock *',
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            labelText: 'Description *',
+            hintText: 'Décrivez votre produit...',
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            prefixIcon: Padding(
+              padding: EdgeInsets.only(bottom: 40),
+              child: Icon(Icons.description_outlined),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Color(0xFF6F42C1), width: 2),
+            ),
           ),
-          validator: (value) {
-            if (value == null || value.isEmpty) return 'Le stock est requis';
-            if (int.tryParse(value) == null) return 'Nombre invalide';
-            return null;
-          },
+          validator: controller.validateDescription,
+          textCapitalization: TextCapitalization.sentences,
         ),
       ],
     );
   }
 
-  Widget _buildPriceSection() {
+  Widget _buildPriceStockSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Gamme de prix',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
+        Row(
+          children: [
+            Icon(Icons.attach_money, color: Color(0xFF6F42C1), size: 20),
+            SizedBox(width: 8),
+            Text(
+              'Prix et inventaire',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
+            ),
+          ],
         ),
         SizedBox(height: 16),
         
         Row(
           children: [
-            // Prix minimum
+            // Prix
             Expanded(
+              flex: 2,
               child: TextFormField(
-                controller: controller.minPriceController,
+                controller: controller.priceController,
                 keyboardType: TextInputType.numberWithOptions(decimal: true),
                 decoration: InputDecoration(
-                  labelText: 'Prix min *',
+                  labelText: 'Prix *',
+                  hintText: '0.00',
                   prefixText: '\$ ',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  prefixIcon: Icon(Icons.price_change_outlined),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Color(0xFF6F42C1), width: 2),
+                  ),
                 ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) return 'Prix min requis';
-                  if (double.tryParse(value) == null) return 'Prix invalide';
-                  return null;
-                },
+                validator: controller.validatePrice,
               ),
             ),
             
             SizedBox(width: 16),
             
-            // Prix maximum
+            // Stock
             Expanded(
+              flex: 1,
               child: TextFormField(
-                controller: controller.maxPriceController,
-                keyboardType: TextInputType.numberWithOptions(decimal: true),
+                controller: controller.stockController,
+                keyboardType: TextInputType.number,
                 decoration: InputDecoration(
-                  labelText: 'Prix max *',
-                  prefixText: '\$ ',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  labelText: 'Stock *',
+                  hintText: '0',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  prefixIcon: Icon(Icons.inventory_outlined),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Color(0xFF6F42C1), width: 2),
+                  ),
                 ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) return 'Prix max requis';
-                  final maxPrice = double.tryParse(value);
-                  final minPrice = double.tryParse(controller.minPriceController.text);
-                  
-                  if (maxPrice == null) return 'Prix invalide';
-                  if (minPrice != null && maxPrice < minPrice) {
-                    return 'Prix max < prix min';
-                  }
-                  return null;
-                },
+                validator: controller.validateStock,
               ),
             ),
           ],
@@ -945,115 +1266,4 @@ class AddProductModal extends StatelessWidget {
       ],
     );
   }
-
-  Widget _buildColorSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Couleur de fond',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        SizedBox(height: 16),
-        
-        Obx(() => Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          children: controller.backgroundColors.map((colorHex) {
-            final color = Color(int.parse(colorHex.replaceFirst('#', '0xFF')));
-            final isSelected = controller.selectedBackgroundColor.value == colorHex;
-            
-            return GestureDetector(
-              onTap: () => controller.selectedBackgroundColor.value = colorHex,
-              child: AnimatedContainer(
-                duration: Duration(milliseconds: 200),
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: color,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: isSelected ? Color(0xFF6F42C1) : Colors.grey[300]!,
-                    width: isSelected ? 3 : 1,
-                  ),
-                ),
-                child: isSelected
-                    ? Icon(
-                        Icons.check,
-                        color: color.computeLuminance() > 0.5 ? Colors.black : Colors.white,
-                        size: 20,
-                      )
-                    : null,
-              ),
-            );
-          }).toList(),
-        )),
-      ],
-    );
-  }
-
-  Widget _buildSubmitButton() {
-    return Obx(() => Container(
-      width: double.infinity,
-      height: 50,
-      child: ElevatedButton(
-        onPressed: controller.isLoading.value ? null : controller.addProduct,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Color(0xFF6F42C1),
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
-          elevation: 0,
-        ),
-        child: controller.isLoading.value
-            ? SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                ),
-              )
-            : Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.add, size: 20),
-                  SizedBox(width: 8),
-                  Text(
-                    'Ajouter le produit',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-      ),
-    ));
-  }
-}
-
-// Custom painter for diagonal stripes
-class StripePainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.black
-      ..strokeWidth = 2;
-
-    for (double i = -size.height; i < size.width; i += 8) {
-      canvas.drawLine(
-        Offset(i, 0),
-        Offset(i + size.height, size.height),
-        paint,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

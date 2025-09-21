@@ -1,4 +1,5 @@
-import 'package:examen_flutter/app/modules/product/views/product_view.dart';
+import 'package:examen_flutter/app/modules/login/views/login_view.dart';
+import 'package:examen_flutter/app/modules/services/api_service.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 class MyApp extends StatelessWidget {
@@ -10,12 +11,13 @@ class MyApp extends StatelessWidget {
         primarySwatch: Colors.deepPurple,
         fontFamily: 'Inter',
       ),
-      home: ProductView(),
+      home: LoginView(),
       debugShowCheckedModeBanner: false,
     );
   }
 }
 
 void main() {
+  Get.put(ApiService());
   runApp(MyApp());
 }
